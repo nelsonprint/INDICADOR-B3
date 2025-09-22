@@ -1,0 +1,82 @@
+// ==========================================
+// INDICADOR – LATERALIZAÇÃO
+// Detecta regiões de consolidação baseado em EMAs e ATR
+// ==========================================
+
+// ================== INPUTS ==================
+input
+  PeriodoMME1M(7);
+  PeriodoMME3M(9);
+  ATRPeriodo(14);
+  ATRTipo(2);
+
+  // ► Critérios da lateralização
+  DistMinEMAsATR(0.15);
+  MaxLarguraPts(290);
+  MinBarrasLaterais(3);
+
+  // ► Aparência das linhas
+  CorLinhaTopo(clGreen);
+  CorLinhaFundo(clRed);
+
+  DebugMode(true);
+
+// ================= VARIÁVEIS ================
+var
+  EMA1, EMA3, ATR: Float;
+
+  EmLateral, TemFaixaValida: Boolean;
+  ContLateral: Integer;
+  TopoFaixa, FundoFaixa: Float;
+
+// ================== INÍCIO ==================
+begin
+  if CurrentBar = 1 then
+  begin
+    EmLateral      := false;
+    TemFaixaValida := false;
+    ContLateral    := 0;
+    TopoFaixa      := 0;
+    FundoFaixa     := 0;
+  end;
+
+  // ===== MÉTRICAS PRINCIPAIS =====
+  EMA1 := xAverage(Close, PeriodoMME1M);
+  EMA3 := xAverage(Close, PeriodoMME3M * 5);
+  ATR  := AvgTrueRange(ATRPeriodo, ATRTipo);
+
+  // ===== LATERALIZAÇÃO =====
+  if Abs(EMA1 - EMA3) < (DistMinEMAsATR * ATR) then
+  begin
+    ContLateral := ContLateral + 1;
+    if not EmLateral then
+    begin
+      EmLateral := true;
+      TopoFaixa := High;
+      FundoFaixa:= Low;
+    end
+    else
+    begin
+      if High > TopoFaixa then TopoFaixa := High;
+      if Low  < FundoFaixa then FundoFaixa := Low;
+    end;
+
+    if (ContLateral >= MinBarrasLaterais) and ((TopoFaixa - FundoFaixa) <= MaxLarguraPts) then
+    begin
+      TemFaixaValida := true;
+      if DebugMode then
+      begin
+        HorizontalLineCustom(TopoFaixa, CorLinhaTopo, 1, psDash,
+                             "▲", 15, tpTopRight, CurrentBar-ContLateral+1, CurrentBar, 1);
+        HorizontalLineCustom(FundoFaixa, CorLinhaFundo, 1, psDash,
+                             "▼", 15, tpTopRight, CurrentBar-ContLateral+1, CurrentBar, 1);
+      end;
+    end;
+  end
+  else
+  begin
+    EmLateral   := false;
+    ContLateral := 0;
+    TemFaixaValida := false;
+  end;
+end;
