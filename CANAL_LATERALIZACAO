@@ -1,0 +1,105 @@
+    // ===== LATERALIZACAO_EMAS_SEGMENTO =====
+// Desenha linhas horizontais (topo/fundo) da lateralização,
+// usando HorizontalLineCustom com início e fim.
+// Profit / NTSL
+
+// ---------- Inputs ----------
+input
+  PeriodoMME1M(7);
+  PeriodoMME3M(9);
+  ATRPeriodo(14);
+  ATRTipo(2);
+
+  // Critério de EMAs próximas (em ATR)
+  DistMinEMAsATR(0.14);         // |EMA1-EMA3| < DistMinEMAsATR*ATR
+
+  // Critério de “canal curto” (absoluto em pontos)
+  MaxLarguraPts(500);           // máx. (Highest-Lowest) dentro da faixa
+
+  // Quantas barras mínimas para validar faixa
+  MinBarrasLaterais(3);
+
+  // Estilo das linhas
+  CorLinhaTopo(clFuchsia);
+  CorLinhaFundo(clAqua);
+  Espessura(2);
+  Estilo(psDash);
+
+// ---------- Variáveis ----------
+var
+  EMA1, EMA3, ATR: Float;
+  EMAsProximas: Boolean;
+
+  EmLateral: Boolean;
+  Cont: Integer;
+  StartBar: Integer;
+  TopoFaixa, FundoFaixa: Float;
+
+// ---------- Início ----------
+begin
+  if CurrentBar = 1 then
+  begin
+    EmLateral := false;
+    Cont      := 0;
+    StartBar  := 0;
+    TopoFaixa := 0;
+    FundoFaixa:= 0;
+  end;
+
+  // Médias / ATR
+  EMA1 := xAverage(Close, PeriodoMME1M);
+  EMA3 := xAverage(Close, PeriodoMME3M * 3);
+  ATR  := AvgTrueRange(ATRPeriodo, ATRTipo);
+
+  // EMAs próximas (critério principal)
+  EMAsProximas := Abs(EMA1 - EMA3) < (DistMinEMAsATR * ATR);
+
+  // Atualiza contador e faixa
+  if EMAsProximas then
+  begin
+    Cont := Cont + 1;
+
+    if not EmLateral then
+    begin
+      // Começou uma possível lateralização
+      EmLateral := true;
+      StartBar  := CurrentBar;
+      TopoFaixa := High;
+      FundoFaixa:= Low;
+    end
+    else
+    begin
+      // Já em lateral: atualiza topo/fundo
+      if High > TopoFaixa then TopoFaixa := High;
+      if Low  < FundoFaixa then FundoFaixa := Low;
+    end;
+
+    // Se ainda não atingiu o mínimo de barras, apenas aguarde
+    // (não desenhamos nada enquanto a largura exceder o teto)
+    if (Cont >= MinBarrasLaterais) and ((TopoFaixa - FundoFaixa) <= MaxLarguraPts) then
+    begin
+      // Desenha/atualiza o segmento até a barra atual
+      HorizontalLineCustom(TopoFaixa,  CorLinhaTopo,  Espessura, Estilo,
+                           "LAT TOP",  10, tpTopRight, StartBar, CurrentBar, 0);
+      HorizontalLineCustom(FundoFaixa, CorLinhaFundo, Espessura, Estilo,
+                           "LAT BOT",  10, tpTopRight, StartBar, CurrentBar, 0);
+    end;
+  end
+  else
+  begin
+    // EMAs afastaram → rompeu a lateralização
+    if EmLateral then
+    begin
+      // “Fecha” as linhas no candle anterior (opcional)
+      if (Cont >= MinBarrasLaterais) and ((TopoFaixa - FundoFaixa) <= MaxLarguraPts) then
+      begin
+        HorizontalLineCustom(TopoFaixa,  CorLinhaTopo,  Espessura, Estilo, "LAT TOP",  10, tpTopRight, StartBar, CurrentBar-1, 0);
+        HorizontalLineCustom(FundoFaixa, CorLinhaFundo, Espessura, Estilo,
+                             "LAT BOT",  10, tpTopRight, StartBar, CurrentBar-1, 0);
+      end;
+      // Reseta estado para buscar a próxima faixa
+      EmLateral := false;
+      Cont      := 0;
+    end;
+  end;
+end;
