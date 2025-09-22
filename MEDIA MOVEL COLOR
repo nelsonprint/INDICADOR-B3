@@ -1,0 +1,31 @@
+// ==========================================
+// MÉDIA MÓVEL COLORIDA (retroage X candles para trás)
+// Verde    = tendência de alta confirmada
+// Vermelho = tendência de baixa confirmada
+// Amarelo  = estável
+// ProfitChart - NTSL
+// ==========================================
+
+Parametro
+  PeriodoMM(21);
+  Retroagir(5);   // nº de candles que retroagem a cor
+
+Var
+  vMM : Real;
+
+Inicio
+  vMM := MediaExp(PeriodoMM, Close);
+
+  // plota a média
+  Plot(vMM);
+
+  // regra de coloração retroativa
+  // agora compara o penúltimo valor da média
+  Se (vMM[1] > vMM[Retroagir - 3]) entao
+    SetPlotColor(1, clLime )     // verde retroagida
+  Senao Se (vMM[1] < vMM[Retroagir - 3]) entao
+    SetPlotColor(1, clRed)      // vermelho retroagida
+  Senao
+    SetPlotColor(1, clYellow);  // estável
+
+Fim;
