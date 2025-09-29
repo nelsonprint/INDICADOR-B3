@@ -1,0 +1,140 @@
+// ==========================================
+// INDICADOR – ROMPIMENTO DE LATERALIZAÇÃO
+// Identifica regiões de lateralização e sinaliza
+// possíveis rompimentos sem executar ordens.
+// ==========================================
+
+// ================== INPUTS ==================
+input
+  PeriodoMME1M(7);
+  ATRPeriodo(14);
+  ATRTipo(2);
+
+  // ► Critérios da lateralização
+  DistMinEMAsATR(0.20);
+  MaxLarguraPts(200);
+  MinBarrasLaterais(5);
+  ToleranciaCandleATR(1.0);
+  JanelaCandles(30);
+
+  // ► Stops / Alvos (apenas para cálculo visual)
+  UsarStopsFixos(true);
+  StopFixoPts(100);
+  AlvoFixoPts(150);
+
+  FatorStopATR(1.2);
+  StopMinPts(70);
+  StopMaxPts(220);
+  RiskRR(2.0);
+
+  // ► Aparência
+  CorLinhaTopo(clBLUE);
+  CorLinhaFundo(clBLUE);
+  DebugMode(true);
+
+// ================= VARIÁVEIS ================
+var
+  EMA1, ATR: Float;
+  i: Integer;
+
+  TopoFaixa, FundoFaixa: Float;
+  TamanhoCandle: Float;
+  DentroDaFaixa: Boolean;
+  CountValidos: Integer;
+  RangeValido: Boolean;
+
+  StopDist, StopPrice, Target: Float;
+
+  EntradaValidaC, EntradaValidaV: Boolean;
+
+// ================== INÍCIO ==================
+begin
+  // ===== MÉTRICAS =====
+  EMA1 := xAverage(Close, PeriodoMME1M);
+  ATR  := AvgTrueRange(ATRPeriodo, ATRTipo);
+
+  StopDist := ATR * FatorStopATR;
+  if StopDist < StopMinPts then StopDist := StopMinPts;
+  if StopDist > StopMaxPts then StopDist := StopMaxPts;
+
+  // ===== AVALIA ÚLTIMOS N CANDLES =====
+  if CurrentBar >= (JanelaCandles + 1) then
+  begin
+    TopoFaixa   := High[1];
+    FundoFaixa  := Low[1];
+    CountValidos := 0;
+
+    for i := 1 to JanelaCandles do
+    begin
+      TamanhoCandle := High[i] - Low[i];
+      DentroDaFaixa := (TamanhoCandle <= (ATR * ToleranciaCandleATR));
+
+      if (Abs(Close[i] - EMA1) < (DistMinEMAsATR * ATR)) and DentroDaFaixa then
+      begin
+        CountValidos := CountValidos + 1;
+        if High[i] > TopoFaixa then TopoFaixa := High[i];
+        if Low[i]  < FundoFaixa then FundoFaixa := Low[i];
+      end;
+    end;
+
+    RangeValido := (CountValidos >= MinBarrasLaterais) and 
+                   ((TopoFaixa - FundoFaixa) <= MaxLarguraPts);
+
+    // ================ ESTRATÉGIA ================
+    // --- Filtro: Rompimento da lateralização ---
+    EntradaValidaC := RangeValido and (Low > TopoFaixa);
+    EntradaValidaV := RangeValido and (High < FundoFaixa);
+
+    // ================== SAÍDAS ==================
+    // ► Sinais visuais no gráfico
+    if EntradaValidaC then
+      PlotText("BUY", Date, Time, Low, clGreen);
+
+    if EntradaValidaV then
+      PlotText("SELL", Date, Time, High, clRed);
+
+    // ► Linhas da lateralização
+    if DebugMode and RangeValido then
+    begin
+      HorizontalLineCustom(TopoFaixa, CorLinhaTopo, 1, psDash,
+                           "▲ Lateral", 8, tpTopRight, CurrentBar-JanelaCandles, CurrentBar, 1);
+      HorizontalLineCustom(FundoFaixa, CorLinhaFundo, 1, psDash,
+                           "▼ Lateral", 8, tpBottomRight, CurrentBar-JanelaCandles, CurrentBar, 1);
+    end;
+
+    // ► Projeção de Stops/Alvos apenas como referência visual
+    if EntradaValidaC then
+    begin
+      if UsarStopsFixos then
+      begin
+        StopPrice := Close - StopFixoPts;
+        Target    := Close + AlvoFixoPts;
+      end
+      else
+      begin
+        StopPrice := Close - StopDist;
+        Target    := Close + StopDist * RiskRR;
+      end;
+
+ 
+    end;
+
+    if EntradaValidaV then
+    begin
+      if UsarStopsFixos then
+      begin
+        StopPrice := Close + StopFixoPts;
+        Target    := Close - AlvoFixoPts;
+      end
+      else
+      begin
+        StopPrice := Close + StopDist;
+        Target    := Close - StopDist * RiskRR;
+      end;
+
+
+    end;
+
+  
+  end;
+end;
