@@ -1,0 +1,121 @@
+// ==========================================
+// MEGA INDICADOR DE REGIME SIMPLIFICADO (WDO)
+// Vermelho = Ruim | Amarelo = Médio
+// Azul = Bom | Verde = Muito Bom
+// ==========================================
+
+// ================== INPUTS ==================
+// ================== INPUTS ==================
+Input
+   ATRPeriodo(14);            // ATR para medir volatilidade
+   ADXPeriodo(14);            // ADX para força de tendência
+   EMAcurtaPeriodo(9);        // EMA curta
+   EMAlongaPeriodo(21);       // EMA longa
+   JanelaATR(200);            // Normalização do ATR
+   LimiarATRBaixo(20);        // ATR% baixo
+   LimiarATRAlto(80);         // ATR% alto
+   LimiarADXTrend(18);        // ADX mínimo aceitável
+   FatorMicroCandle(0.60);    // Candles pequenos demais
+   JanelaMediaCorpo(20);      // Média corpo candle
+   ContaPadrao("PRACTICE");   // Segurança
+   DelayExecucao(0.700);      // Segurança
+   ATRTipo(2);
+
+
+
+// ================= VARIÁVEIS ================
+Var
+    ATR, ATRmin, ATRmax, ATRpct, ValorATR : Float;
+   ADXval, EMAcurta, EMAlonga : Float;
+   Corpo, MediaCorpo, Score : Float;
+   Nivel, CorNivel : Integer;
+   MicroCandle : Boolean;
+
+
+// ================== INÍCIO ==================
+// --- Volatilidade normalizada ---
+
+begin
+ATR := AvgTrueRange(ATRPeriodo, ATRTipo);
+ATRmin := Lowest(ATR, JanelaATR);
+ATRmax := Highest(ATR, JanelaATR);
+
+
+If ATRmax > ATRmin then
+   ATRpct := 100 * (ATR - ATRmin) / (ATRmax - ATRmin)
+Else
+   ATRpct := 0;
+
+
+// --- Força de tendência ---
+ADXval := ADX(ADXPeriodo,14);
+
+// --- Corpo médio ---
+Corpo := Abs(Fechamento - Abertura);
+MediaCorpo := Media(Corpo, JanelaMediaCorpo);
+MicroCandle := (MediaCorpo > 0) and (Corpo < FatorMicroCandle * MediaCorpo);
+
+// --- Direção ---
+EMAcurta := MediaExp(Fechamento, EMAcurtaPeriodo);
+EMAlonga := MediaExp(Fechamento, EMAlongaPeriodo);
+
+// ================== CLASSIFICAÇÃO ==================
+Score := 0;
+
+// Penalizações
+If ATRpct < LimiarATRBaixo then Score := Score - 1;
+If ATRpct > LimiarATRAlto  then Score := Score - 1;
+If ADXval < LimiarADXTrend then Score := Score - 1;
+If MicroCandle             then Score := Score - 1;
+
+// Pontos positivos
+If (ATRpct >= LimiarATRBaixo) and (ATRpct <= LimiarATRAlto) then Score := Score + 1;
+If (ADXval >= LimiarADXTrend) then Score := Score + 1;
+If (EMAcurta > EMAlonga) or (EMAcurta < EMAlonga) then Score := Score + 1;
+
+// ================== NÍVEIS ==================
+If Score <= 0 then
+begin
+   Nivel := 1; // Ruim
+   CorNivel := 255;
+end
+Else If Score = 1 then
+begin
+   Nivel := 2; // Médio
+   CorNivel :=65535;
+end
+Else If Score = 2 then
+begin
+   Nivel := 3; // Bom
+   CorNivel := clBlue;
+end
+Else
+begin
+   Nivel := 4; // Muito Bom
+   CorNivel := 65280;
+end;
+
+// ================== SAÍDAS ==================
+// Coloração de candles pelo nível
+PaintBar(CorNivel);
+
+// Plot do nível
+PlotText("Nivel",Nivel );
+SetPlotColor(1, CorNivel);
+
+// Comentário no cursor
+
+
+  If Nivel = 1 then
+   PlotText(Date, Time, Fechamento, clRed);
+If Nivel = 2 then
+   PlotText(Date, Time, Fechamento, clYellow);
+If Nivel = 3 then
+   PlotText(Date, Time, Fechamento, clBlue);
+If Nivel = 4 then
+   PlotText(Date, Time, Fechamento, clGreen);
+
+
+
+   
+end;
